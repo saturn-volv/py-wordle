@@ -1,3 +1,4 @@
+# Saturn Harrison. Completed on 21/02/2024
 from enum import Enum
 import random
 import time
@@ -49,7 +50,7 @@ class GUI:
     # The format for how an attempt is printed to the console.
     ATTEMPT_FORMAT = "{0}{1}{2}{3}{4} ({score}/5)"
     # The ouput format for sharing your results of the game.
-    MOMENTO_FORMAT = "Wordle {date_today} {score}/6\n\n{attempts}"
+    MOMENTO_FORMAT = "Wordle: {final_word} {score}/6\n\n{attempts}"
 
 # Handles the back-end gameplay, such as checking characters are correct.
 class Game:
@@ -166,7 +167,7 @@ def print_momento(game):
     for attempt in game.attempts:
         attempts.append(attempt.split()[0])
     attempt_ouput = "\n".join(attempts)
-    print(GUI.MOMENTO_FORMAT.format(date_today=DATE_TODAY, score=len(game.attempts), attempts=attempt_ouput))
+    print(GUI.MOMENTO_FORMAT.format(final_word=game.answer_word, score=len(game.attempts), attempts=attempt_ouput))
 
 
 def main():
