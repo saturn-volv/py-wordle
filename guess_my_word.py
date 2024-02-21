@@ -1,7 +1,6 @@
 from enum import Enum
 import random
 import time
-import re
 
 # For interal use to make sure everything is working.
 DEBUGGING = False
@@ -26,15 +25,13 @@ def clear_console():
     print(GUI.ERROR_MESSAGE)
     GUI.ERROR_MESSAGE = ""
 
-def only_letters(text):
-    match = re.match("^[a-hj-m]*$", text)
-    return match is not None
-
 MAX_ATTEMPTS = 6
 WORD_LENGTH = 5
 
 VALID_WORD_PATH = 'word_bank/all_words.txt'
 ANSWER_WORD_PATH = 'word_bank/target_words.txt'
+
+DATE_TODAY = time.strftime("%d/%m/%Y")
 
 # All valid input words. Not every word you can use can be an answer.
 valid_words = get_list_from_txt(VALID_WORD_PATH)
@@ -46,11 +43,13 @@ class GUI:
     # Used so that i can ouput why the answer the user has inputed may not be a valid word.
     ERROR_MESSAGE = ""
     # The welcome message, better practice than using a simple `print("str")` function call.
-    WELCOME_MESSAGE = f"Welcome to Wordle! The date today is {time.strftime("%d/%m/%Y")}."
+    WELCOME_MESSAGE = f"Welcome to Wordle! The date today is {DATE_TODAY}."
     # The intro word prompt.
     WORD_PROMPT = "You have {attempts_left} attempts left.\nPlease enter a word: "
     # The format for how an attempt is printed to the console.
-    ATTEMPT_FORMAT = "{attempt}\n{0}{1}{2}{3}{4} ({score}/5)"
+    ATTEMPT_FORMAT = "{0}{1}{2}{3}{4} ({score}/5)"
+    # The ouput format for sharing your results of the game.
+    MOMENTO_FORMAT = "Wordle {date_today} {score}/6\n\n{attempts}"
 
 # Handles the back-end gameplay, such as checking characters are correct.
 class Game:
@@ -119,7 +118,7 @@ class Game:
         word_score = correct_chars / 2
         if word_score.is_integer():
             word_score = int(word_score)
-        attempt = GUI.ATTEMPT_FORMAT.format(*chars, attempt=chosen_word.upper(), score=word_score)
+        attempt = GUI.ATTEMPT_FORMAT.format(*chars, score=word_score)
         self.attempted_words.append(chosen_word)
         self.attempts.append(attempt)
         return word_score >= 5
@@ -127,7 +126,8 @@ class Game:
 # Prints out the 
 def print_attempts(game):
     clear_console()
-    for attempt in game.attempts:
+    for i, attempt in enumerate(game.attempts):
+        print(game.attempted_words[i].upper())
         print(attempt)
 
 # Gets the word from the target list.
@@ -160,6 +160,15 @@ def attempt_word(game):
         return False
     return game.add_attempt(chosen_word)
 
+def print_momento(game):
+    print()
+    attempts = []
+    for attempt in game.attempts:
+        attempts.append(attempt.split()[0])
+    attempt_ouput = "\n".join(attempts)
+    print(GUI.MOMENTO_FORMAT.format(date_today=DATE_TODAY, score=len(game.attempts), attempts=attempt_ouput))
+
+
 def main():
     # Simple boolean to reveal outside scope if the game was won or not.
     won_the_game = False
@@ -179,13 +188,11 @@ def main():
     else:
         print("You ran out of attempts :(")
         print(f"The word was {word_of_the_day}.")
+    # Just stops the game from ending *right* away.
+    input("Press any ENTER to recieve momento.\n> ")
+    print_momento(game)
 
 if __name__ == "__main__":
     main()
-    # Just stops the game from ending *right* away.
-    input("Press any ENTER to contine...")
+    input("")
     print("\033c", end='')
-
-    # Was gonna have the results be copyable, 
-    # but you cannot copy to clipboard without installing new libraries...
-
