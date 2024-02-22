@@ -1,7 +1,8 @@
 # py-wordle
- <sub> This was created for the Certificate IV in Information Technology (Games and Intelligent Systems) course at North Metropolitan TAFE. </sub>
-
- A python recreation of the New York Times game "Wordle". 
+ A python recreation of the New York Times game "Wordle".<br>
+ <sub> 
+    Project (PRJ) Assessment - ICT40120 - Certificate IV in Information Technology (Games and Intelligent Systems).
+ </sub>
  
 ## How to play
  As the console will prompt, input a 5 letter word. You can find a list of valid words here: [word_bank/all_words.txt](https://github.com/saturn-volv/py-wordle/blob/main/word_bank/all_words.txt).

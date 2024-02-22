@@ -50,7 +50,7 @@ class GUI:
     # The format for how an attempt is printed to the console.
     ATTEMPT_FORMAT = "{0}{1}{2}{3}{4} ({score}/5)"
     # The ouput format for sharing your results of the game.
-    MOMENTO_FORMAT = "Wordle: {final_word} {score}/6\n\n{attempts}"
+    MOMENTO_FORMAT = "Wordle {final_word} {score}/6\n\n{attempts}"
 
 # Handles the back-end gameplay, such as checking characters are correct.
 class Game:
@@ -161,38 +161,39 @@ def attempt_word(game):
         return False
     return game.add_attempt(chosen_word)
 
+# Prints out the final momento of the player's score
 def print_momento(game):
     print()
     attempts = []
     for attempt in game.attempts:
         attempts.append(attempt.split()[0])
     attempt_ouput = "\n".join(attempts)
-    print(GUI.MOMENTO_FORMAT.format(final_word=game.answer_word, score=len(game.attempts), attempts=attempt_ouput))
+    final_score = str(len(game.attempts))
+    if not won_the_game:
+        final_score = "X"
+    print(GUI.MOMENTO_FORMAT.format(final_word=game.answer_word.upper(), score=final_score, attempts=attempt_ouput))
 
+# Simple boolean to reveal outside scope if the game was won or not.
+won_the_game = False
+# The winning word, selected from the .txt file
+word_of_the_day = get_wordle_word()
+game = Game(word_of_the_day)
 
-def main():
-    # Simple boolean to reveal outside scope if the game was won or not.
-    won_the_game = False
-    # The winning word, selected from the .txt file
-    word_of_the_day = get_wordle_word()
-    game = Game(word_of_the_day)
-
-    # Game loop.
-    while len(game.attempts) < MAX_ATTEMPTS:
-        if attempt_word(game):
-            won_the_game = True
-            print_attempts(game)
-            break
+# Game loop.
+while len(game.attempts) < MAX_ATTEMPTS:
+    if attempt_word(game):
+        won_the_game = True
         print_attempts(game)
-    if won_the_game:
-        print(f"You won! You got it in {len(game.attempts)} tries!")
-    else:
-        print("You ran out of attempts :(")
-        print(f"The word was {word_of_the_day}.")
-    # Just stops the game from ending *right* away.
-    input("Press any ENTER to recieve momento.\n> ")
-    print_momento(game)
-
-main()
+        break
+    print_attempts(game)
+if won_the_game:
+    print(f"You won! You got it in {len(game.attempts)} tries!")
+else:
+    print("You ran out of attempts :(")
+    print(f"The word was {word_of_the_day}.")
+# Just stops the game from ending *right* away.
+input("Press any ENTER to recieve momento.\n> ")
+print_momento(game)
+# Waits for user input before clearing the console and exiting the program.
 input("")
 print("\033c", end='')
