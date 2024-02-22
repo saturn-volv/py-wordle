@@ -193,7 +193,6 @@ def main():
     input("Press any ENTER to recieve momento.\n> ")
     print_momento(game)
 
-if __name__ == "__main__":
-    main()
-    input("")
-    print("\033c", end='')
+main()
+input("")
+print("\033c", end='')
