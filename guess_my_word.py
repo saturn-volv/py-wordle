@@ -145,7 +145,6 @@ class Game:
         for i, char in enumerate(user_guess):
             if self.target_word.find(char) > -1:
                 if get_index_of_character_excluding_others(i, user_guess) <= target_freq[char]:
-                    print(char)
                     score_list.append(1)
                     continue
             score_list.append(0)
@@ -157,11 +156,12 @@ class Game:
         for i, char in enumerate(user_guess):
             if char == self.target_word[i]:
                 score_list[i] = 2
-                if guess_freq[char] <= 1:
-                    for i in range(len(user_guess)):
-                        if user_guess[i] == char and score_list[i] != 2:
+                for index in range(len(user_guess)):
+                    if user_guess[index] == char and score_list[index] < 2:
+                        if get_index_of_character_excluding_others(index, user_guess) > guess_freq[char]:
+                            continue
+                        elif score_list[i] != 2:
                             score_list[i] = 0
-                guess_freq[char] -= 1
         return score_list
     
     def generate_score(self, user_guess):
@@ -211,7 +211,6 @@ def check_attempt(game, user_guess):
     else:
         passed = True
         game.generate_attempt(user_guess)
-    game.print_attempts()
     return passed
         
 # Gets the word from the target list.
