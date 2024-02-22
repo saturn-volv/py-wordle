@@ -1,10 +1,16 @@
-# Saturn Harrison. Completed on 21/02/2024
-from enum import Enum
+"""
+    py-wordle
+    A Python 3.1x recreation of the New York Times sensation "Wordle"
+
+    Author: Saturn Harrison
+    Company: ""
+    Copyright: 2024
+"""
 import random
 import time
 
 # For interal use to make sure everything is working.
-DEBUGGING = False
+DEBUGGING = True
 
 ## Utility functions:
 # Gets a list of strings for each line in a text file.
@@ -19,6 +25,15 @@ def generate_char_frequency(word):
         char_freq[char] = char_freq.setdefault(char, 0) + 1
     
     return char_freq
+def get_index_of_character_excluding_others(index, word):
+    char = word[index]
+    count = 0
+    for i, c in enumerate(word):
+        if c == char:
+            count += 1
+        if i == index:
+            return count
+    return -1
 # Clears the console for a clean view.
 def clear_console():
     print("\033c", end='')
@@ -52,148 +67,84 @@ class GUI:
     # The ouput format for sharing your results of the game.
     MOMENTO_FORMAT = "Wordle {final_word} {score}/6\n\n{attempts}"
 
-# Handles the back-end gameplay, such as checking characters are correct.
+    # Simple structure to clarify the ascii tokens based on a score value of each character.
+    class Footnote:
+        MISSED = ("⬛", 0)
+        CONTAINS = ("🟨", 1)
+        CORRECT = ("🟩", 2)
+
+        def from_score(value):
+            for t in [  GUI.Footnote.MISSED,  
+                        GUI.Footnote.CONTAINS,
+                        GUI.Footnote.CORRECT ]:
+                if t[1] == value:
+                    return t[0]
+            return GUI.Footnote.MISSED
+
 class Game:
-    # A list of all the attempts, to be printed after each attempt.
-    attempts = []
-    attempted_words = []
-    # Generates the answer word in the main function, so there is still backend.
-    answer_word = ""
+    # Will be a dictionary of tuples, with the attempted word as a key, and a tuple containing the score, and the displayed footnote.
+    attempts = dict()
+    # The word of the "day".
+    target_word = ""
 
-    # Starts a new game instance
-    def __init__(self, answer):
-        self.answer_word = answer
+    def __init__(self, target_word):
+        self.target_word = target_word
         clear_console()
-        if DEBUGGING: 
-            print(f"[DEBUG]: A valid word has been chosen. ({self.answer_word})") # Making sure an answer is actually provided.
+        if DEBUGGING:
+            print(f"[DEBUG]: A valid word has been chosen. ({self.target_word})") # Making sure an answer is actually provided.
 
-    # Simple enum structure to clarify the ascii tokens.
-    class LetterCheck(Enum):
-        MISSED = "⬛"  # Letter is not in the word.
-        CONTAINS = "🟨"  # The letter is in the word but the wrong place.
-        CORRECT = "🟩"  # The letter is in the word AND in the correct place.
+    def generate_contained_scores(self, user_guess):
+        score_list = list()
+        target_freq = generate_char_frequency(self.target_word)
+        for i, char in enumerate(user_guess):
+            if self.target_word.find(char) > -1:
+                if get_index_of_character_excluding_others(i, user_guess) <= target_freq[char]:
+                    score_list.append(1)
+                    continue
+            score_list.append(0)
+        return score_list
     
-    # Outputs the Enum based on the score of the letter at a chosen point.
-    def check_char(self, char, input_word):
-        index_of_input = input_word.find(char)
-        if index_of_input == -1:
-            return self.LetterCheck.MISSED
-        index_of_answer = self.answer_word.find(char)
-        if index_of_input == index_of_answer:
-            return self.LetterCheck.CORRECT
-        elif self.answer_word.find(char) >= 0:
-            for i in range(5):
-                if self.answer_word[i] == input_word[i] == char:
-                    return self.LetterCheck.MISSED
-            return self.LetterCheck.CONTAINS
-        else:
-            return self.LetterCheck.MISSED
-
-    # Adds an attempt to the game list. Used for ouputting to console.
-    def add_attempt(self, chosen_word):
-        chars = []
-        answer_dict = generate_char_frequency(self.answer_word)
-        attempt_dict = {}
-        for i, char in enumerate(list(chosen_word)):
-            attempt_dict[char] = attempt_dict.setdefault(char, 0) + 1
-            if DEBUGGING: # To make sure the ordering is correct.
-                print(char)
-            if attempt_dict.get(char) > answer_dict.get(char, 0):
-                chars.append(self.LetterCheck.MISSED.value)
-                continue
-            else:
-                o_char = self.check_char(char, chosen_word)
-                chars.append(o_char.value)
-        
-        for i, char in enumerate(chars):
-            # Overrides to make sure that every correct letter is, infact, correct
-            if chosen_word[i] == self.answer_word[i]:
-                chars[i] = self.LetterCheck.CORRECT.value
-        correct_chars = 0
-        for char in chars:
-            if char == "🟩": 
-                correct_chars += 2
-            if char == "🟨":
-                correct_chars += 1
+    def generate_confirmed_scores(self, user_guess, contained_list):
+        guess_freq = generate_char_frequency(user_guess)
+        target_freq = generate_char_frequency(self.target_word)
+        score_list = contained_list[:]
+        for i, char in enumerate(user_guess):
+            if char == self.target_word[i]:
+                score_list[i] = 2
+                guess_freq[char] -= 1
+                if guess_freq[char] <= 1:
+                    for i in range(len(user_guess)):
+                        if score_list[i] != 2:
+                            score_list[i] = 0
+        return score_list
     
-        word_score = correct_chars / 2
-        if word_score.is_integer():
-            word_score = int(word_score)
-        attempt = GUI.ATTEMPT_FORMAT.format(*chars, score=word_score)
-        self.attempted_words.append(chosen_word)
-        self.attempts.append(attempt)
-        return word_score >= 5
+    def generate_score(self, user_guess):
+        score_list = self.generate_confirmed_scores(user_guess, self.generate_contained_scores(user_guess))
+        return score_list
+    def generate_footnote(self, score_list):
+        emoji_list = list()
+        for score in score_list:
+            emoji_list.append(GUI.Footnote.from_score(score))
+        return emoji_list
 
-# Prints out the 
-def print_attempts(game):
-    clear_console()
-    for i, attempt in enumerate(game.attempts):
-        print(game.attempted_words[i].upper())
-        print(attempt)
+    def generate_attempt(self, user_guess):
+        score_list = self.generate_score(user_guess)
+        attempt = (self.generate_footnote(score_list), score_list)
+        self.attempts[user_guess] = attempt
+
 
 # Gets the word from the target list.
 def get_wordle_word():
     return random.choice(target_words)
+        
+def play():
+    target_word = get_wordle_word()
+    game = Game(target_word)
 
-# Checks to make sure the word is of correct length, a valid word, and hasn't been used before.
-def check_word(attempt, game):
-    if not attempt.isalpha():
-        GUI.ERROR_MESSAGE = "Please only use alphabetical characters. Try Again."
-        return False
-    if len(attempt) < WORD_LENGTH:
-        GUI.ERROR_MESSAGE = "Not enough characters. Try Again."
-        return False
-    if len(attempt) > WORD_LENGTH:
-        GUI.ERROR_MESSAGE = "Too many characters. Try Again."
-        return False
-    if attempt not in valid_words:
-        GUI.ERROR_MESSAGE = "Invalid word. Try Again."
-        return False
-    if attempt in game.attempted_words:
-        GUI.ERROR_MESSAGE = "You have tried this word before. Try Again."
-        return False
-    return True
+    while len(game.attempts) < MAX_ATTEMPTS:
+        user_guess = input("Enter ur guess: ")
+        game.generate_attempt(user_guess)
+        print(game.attempts)
 
-# Prompts the user to enter a word, while also providing if the answer given is valid or not.
-def attempt_word(game):
-    chosen_word = input(f"{GUI.WORD_PROMPT.format(attempts_left = MAX_ATTEMPTS - len(game.attempts))}\n> ").lower()
-    if not check_word(chosen_word, game):
-        return False
-    return game.add_attempt(chosen_word)
 
-# Prints out the final momento of the player's score
-def print_momento(game):
-    print()
-    attempts = []
-    for attempt in game.attempts:
-        attempts.append(attempt.split()[0])
-    attempt_ouput = "\n".join(attempts)
-    final_score = str(len(game.attempts))
-    if not won_the_game:
-        final_score = "X"
-    print(GUI.MOMENTO_FORMAT.format(final_word=game.answer_word.upper(), score=final_score, attempts=attempt_ouput))
-
-# Simple boolean to reveal outside scope if the game was won or not.
-won_the_game = False
-# The winning word, selected from the .txt file
-word_of_the_day = get_wordle_word()
-game = Game(word_of_the_day)
-
-# Game loop.
-while len(game.attempts) < MAX_ATTEMPTS:
-    if attempt_word(game):
-        won_the_game = True
-        print_attempts(game)
-        break
-    print_attempts(game)
-if won_the_game:
-    print(f"You won! You got it in {len(game.attempts)} tries!")
-else:
-    print("You ran out of attempts :(")
-    print(f"The word was {word_of_the_day}.")
-# Just stops the game from ending *right* away.
-input("Press any ENTER to recieve momento.\n> ")
-print_momento(game)
-# Waits for user input before clearing the console and exiting the program.
-input("")
-print("\033c", end='')
+play()
