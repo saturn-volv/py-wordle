@@ -51,7 +51,10 @@ DATE_TODAY = time.strftime("%d/%m/%Y")
 valid_words = get_list_from_txt(VALID_WORD_PATH)
 # All the words the answer for the game could possibly be.
 target_words = get_list_from_txt(ANSWER_WORD_PATH)
+
+# A handler for gathering config files in a game experience.
 class Config:
+    ## These values are arbitrary and do nothing.
     # For interal use to make sure everything is working.
     debug_mode = False
     # Whether to print using emojis, or with numerical values.
@@ -61,7 +64,6 @@ class Config:
     # Whether to use a seed from todays date, or psuedo-random
     seed_from_date = False
 
-    # Setting the previous values does nothing.
     def generate_config(self):
         settings = get_list_from_txt(CONFIG_PATH)
         for line in settings:

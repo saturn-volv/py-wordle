@@ -5,6 +5,8 @@
  </sub>
  
 ## How to play
+ Before you play, make sure to check out `config.txt` for all your settings. Just some options to give the user full control of their experince.
+
  As the console will prompt, input a 5 letter word. You can find a list of valid words here: [word_bank/all_words.txt](https://github.com/saturn-volv/py-wordle/blob/main/word_bank/all_words.txt).
 
  You cannot enter any words greater or less than 5 characters in length nor can they contain any characters that are not valid english characters. You can also not reuse any previous attempts. 
