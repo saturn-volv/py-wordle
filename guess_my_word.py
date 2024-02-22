@@ -2,6 +2,8 @@
     py-wordle
     A Python 3.1x recreation of the New York Times sensation "Wordle"
 
+    [Still in the process of documenting everything.]
+
     Author: Saturn Harrison
     Company: ""
     Copyright: 2024
@@ -219,8 +221,7 @@ def get_wordle_word():
         random.seed(a=DATE_TODAY,version=2)
     return random.choice(target_words)
 
-"""Sends the user a prompt to recieve a momento of their game.
-"""
+# Sends the user a prompt to recieve a momento of their game.
 def prompt_footnote(game):
     input("Press ENTER for momento.")
     print("\033c", end='')
