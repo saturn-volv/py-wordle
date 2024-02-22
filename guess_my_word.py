@@ -12,6 +12,8 @@ import time
 # For interal use to make sure everything is working.
 DEBUGGING = True
 
+PRINT_EMOJIS = True
+
 ## Utility functions:
 # Gets a list of strings for each line in a text file.
 def get_list_from_txt(path):
@@ -63,9 +65,13 @@ class GUI:
     # The intro word prompt.
     WORD_PROMPT = "You have {attempts_left} attempts left.\nPlease enter a word: "
     # The format for how an attempt is printed to the console.
-    ATTEMPT_FORMAT = "{0}{1}{2}{3}{4} ({score}/5)"
+    ATTEMPT_FORMAT = "{attempt}\n{footnote} ({score}/5.0)"
     # The ouput format for sharing your results of the game.
     MOMENTO_FORMAT = "Wordle {final_word} {score}/6\n\n{attempts}"
+
+    def send_error(msg):
+        GUI.ERROR_MESSAGE = msg
+        return False
 
     # Simple structure to clarify the ascii tokens based on a score value of each character.
     class Footnote:
@@ -80,6 +86,18 @@ class GUI:
                 if t[1] == value:
                     return t[0]
             return GUI.Footnote.MISSED
+        
+        def generate_footnote(attempts):
+            final_list = list()
+            last_key = ""
+            for key, score_tuple in attempts.items():
+                final_list.append(''.join(score_tuple[0]))
+                last_key = key.upper()
+            attempt_footnote = "\n".join(final_list)
+            score = str(len(attempts))
+            if not won_the_game:
+                score = "X"
+            return GUI.MOMENTO_FORMAT.format(final_word=last_key, score=score, attempts=attempt_footnote)
 
 class Game:
     # Will be a dictionary of tuples, with the attempted word as a key, and a tuple containing the score, and the displayed footnote.
@@ -91,14 +109,16 @@ class Game:
         self.target_word = target_word
         clear_console()
         if DEBUGGING:
-            print(f"[DEBUG]: A valid word has been chosen. ({self.target_word})") # Making sure an answer is actually provided.
+            print(f"[DEBUG]: A valid word has been chosen. ({self.target_word})") # Making sure an answer is actually provided.            
 
+    # generates the contained letters seperately, as this handles whether a character has been guessed previously and is correct.
     def generate_contained_scores(self, user_guess):
         score_list = list()
         target_freq = generate_char_frequency(self.target_word)
         for i, char in enumerate(user_guess):
             if self.target_word.find(char) > -1:
                 if get_index_of_character_excluding_others(i, user_guess) <= target_freq[char]:
+                    print(char)
                     score_list.append(1)
                     continue
             score_list.append(0)
@@ -106,16 +126,15 @@ class Game:
     
     def generate_confirmed_scores(self, user_guess, contained_list):
         guess_freq = generate_char_frequency(user_guess)
-        target_freq = generate_char_frequency(self.target_word)
         score_list = contained_list[:]
         for i, char in enumerate(user_guess):
             if char == self.target_word[i]:
                 score_list[i] = 2
-                guess_freq[char] -= 1
                 if guess_freq[char] <= 1:
                     for i in range(len(user_guess)):
-                        if score_list[i] != 2:
+                        if user_guess[i] == char and score_list[i] != 2:
                             score_list[i] = 0
+                guess_freq[char] -= 1
         return score_list
     
     def generate_score(self, user_guess):
@@ -132,19 +151,72 @@ class Game:
         attempt = (self.generate_footnote(score_list), score_list)
         self.attempts[user_guess] = attempt
 
+    def get_score(self, user_guess):
+        if user_guess not in self.attempts:
+            return 0
+        total_score = 0
+        for val in self.attempts[user_guess][1]:
+            total_score += val
+        return total_score
+    
+    def print_attempts(self):
+        clear_console()
+        output = list()
+        for key, score_tuple in self.attempts.items():
+            output.append(GUI.ATTEMPT_FORMAT.format(attempt=key.upper(),footnote=''.join(map(str, score_tuple[0 if PRINT_EMOJIS else 1])), score=(self.get_score(key) / 2)))
+        
+        for footnote in output:
+            print(footnote)
+    
+    def check_win_con(self, user_guess):
+        return self.get_score(user_guess) >= 10
 
+def check_attempt(game, user_guess):
+    passed = False
+    if user_guess in game.attempts:
+        passed = GUI.send_error("You have already tried this word. Try again.")
+    elif len(user_guess) != 5:
+        passed = GUI.send_error("Your guess must be 5 characters in length. Try again.")
+    elif not user_guess.isalpha():
+        passed = GUI.send_error("Please only use alphabetical characters. Try again.")
+    elif user_guess not in valid_words:
+        passed = GUI.send_error("Invalid word. Try again.")
+    else:
+        passed = True
+        game.generate_attempt(user_guess)
+    game.print_attempts()
+    return passed
+        
 # Gets the word from the target list.
 def get_wordle_word():
     return random.choice(target_words)
-        
-def play():
+
+def prompt_footnote(game):
+    input("Press ENTER for momento.")
+    print("\033c", end='')
+    print(GUI.Footnote.generate_footnote(game.attempts))
+
+won_the_game = False
+def play(game):
+    while len(game.attempts) < MAX_ATTEMPTS:
+        user_guess = input(GUI.WORD_PROMPT.format(attempts_left=(MAX_ATTEMPTS - len(game.attempts))))
+        if check_attempt(game, user_guess):
+            global won_the_game; won_the_game = game.check_win_con(user_guess)
+            game.print_attempts()
+
+            if won_the_game:
+                print("You won!")
+                prompt_footnote(game)
+                return
+    print("You ran out of attempts :(")
+    print(f"The correct word was {game.target_word}.")
+    prompt_footnote(game)
+def init():
     target_word = get_wordle_word()
     game = Game(target_word)
-
-    while len(game.attempts) < MAX_ATTEMPTS:
-        user_guess = input("Enter ur guess: ")
-        game.generate_attempt(user_guess)
-        print(game.attempts)
+    play(game)
 
 
-play()
+init()
+input("")
+print("\033c", end='')
