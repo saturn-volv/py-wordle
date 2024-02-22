@@ -9,11 +9,6 @@
 import random
 import time
 
-# For interal use to make sure everything is working.
-DEBUGGING = True
-
-PRINT_EMOJIS = True
-
 ## Utility functions:
 # Gets a list of strings for each line in a text file.
 def get_list_from_txt(path):
@@ -48,6 +43,7 @@ WORD_LENGTH = 5
 
 VALID_WORD_PATH = 'word_bank/all_words.txt'
 ANSWER_WORD_PATH = 'word_bank/target_words.txt'
+CONFIG_PATH = 'config.txt'
 
 DATE_TODAY = time.strftime("%d/%m/%Y")
 
@@ -55,6 +51,36 @@ DATE_TODAY = time.strftime("%d/%m/%Y")
 valid_words = get_list_from_txt(VALID_WORD_PATH)
 # All the words the answer for the game could possibly be.
 target_words = get_list_from_txt(ANSWER_WORD_PATH)
+class Config:
+    # For interal use to make sure everything is working.
+    debug_mode = False
+    # Whether to print using emojis, or with numerical values.
+    display_symbols = False
+    # For full customization of what characters can be displayed.
+    game_characters = list()
+    # Whether to use a seed from todays date, or psuedo-random
+    seed_from_date = False
+
+    # Setting the previous values does nothing.
+    def generate_config(self):
+        settings = get_list_from_txt(CONFIG_PATH)
+        for line in settings:
+            if line.startswith("#") or len(line) < 1:
+                continue
+            setting = line.split("=")[0]
+            value = line.split("#")[0].strip().split("=")[1]
+            if setting == "debug_mode":
+                self.debug_mode = value == "true"
+            elif setting == "display_symbols":
+                self.display_symbols = value == "true"
+            elif setting == "game_characters":
+                self.game_characters = value.split(",")
+            elif setting == "seed_from_date":
+                self.seed_from_date = value == "true"
+    def __init__(self):
+        self.generate_config()
+
+CONFIG = Config()
 
 # A front end class to handle how text may be displayed. This could be used to provide localization in the future.
 class GUI:
@@ -75,9 +101,9 @@ class GUI:
 
     # Simple structure to clarify the ascii tokens based on a score value of each character.
     class Footnote:
-        MISSED = ("⬛", 0)
-        CONTAINS = ("🟨", 1)
-        CORRECT = ("🟩", 2)
+        MISSED = (CONFIG.game_characters[0], 0)
+        CONTAINS = (CONFIG.game_characters[1], 1)
+        CORRECT = (CONFIG.game_characters[2], 2)
 
         def from_score(value):
             for t in [  GUI.Footnote.MISSED,  
@@ -87,17 +113,16 @@ class GUI:
                     return t[0]
             return GUI.Footnote.MISSED
         
-        def generate_footnote(attempts):
+        def generate_footnote(game):
+            attempts = game.attempts
             final_list = list()
-            last_key = ""
-            for key, score_tuple in attempts.items():
+            for _, score_tuple in attempts.items():
                 final_list.append(''.join(score_tuple[0]))
-                last_key = key.upper()
             attempt_footnote = "\n".join(final_list)
             score = str(len(attempts))
             if not won_the_game:
                 score = "X"
-            return GUI.MOMENTO_FORMAT.format(final_word=last_key, score=score, attempts=attempt_footnote)
+            return GUI.MOMENTO_FORMAT.format(final_word=game.target_word.upper(), score=score, attempts=attempt_footnote)
 
 class Game:
     # Will be a dictionary of tuples, with the attempted word as a key, and a tuple containing the score, and the displayed footnote.
@@ -108,8 +133,8 @@ class Game:
     def __init__(self, target_word):
         self.target_word = target_word
         clear_console()
-        if DEBUGGING:
-            print(f"[DEBUG]: A valid word has been chosen. ({self.target_word})") # Making sure an answer is actually provided.            
+        if CONFIG.debug_mode:
+            print(f"[DEBUG]: A valid word has been chosen. ({self.target_word})") # Making sure an answer is actually provided.
 
     # generates the contained letters seperately, as this handles whether a character has been guessed previously and is correct.
     def generate_contained_scores(self, user_guess):
@@ -163,7 +188,7 @@ class Game:
         clear_console()
         output = list()
         for key, score_tuple in self.attempts.items():
-            output.append(GUI.ATTEMPT_FORMAT.format(attempt=key.upper(),footnote=''.join(map(str, score_tuple[0 if PRINT_EMOJIS else 1])), score=(self.get_score(key) / 2)))
+            output.append(GUI.ATTEMPT_FORMAT.format(attempt=key.upper(),footnote=''.join(map(str, score_tuple[0 if CONFIG.display_symbols else 1])), score=(self.get_score(key) / 2)))
         
         for footnote in output:
             print(footnote)
@@ -189,12 +214,16 @@ def check_attempt(game, user_guess):
         
 # Gets the word from the target list.
 def get_wordle_word():
+    if CONFIG.seed_from_date:
+        random.seed(a=DATE_TODAY,version=2)
     return random.choice(target_words)
 
+"""Sends the user a prompt to recieve a momento of their game.
+"""
 def prompt_footnote(game):
     input("Press ENTER for momento.")
     print("\033c", end='')
-    print(GUI.Footnote.generate_footnote(game.attempts))
+    print(GUI.Footnote.generate_footnote(game))
 
 won_the_game = False
 def play(game):
@@ -211,6 +240,7 @@ def play(game):
     print("You ran out of attempts :(")
     print(f"The correct word was {game.target_word}.")
     prompt_footnote(game)
+
 def init():
     target_word = get_wordle_word()
     game = Game(target_word)
