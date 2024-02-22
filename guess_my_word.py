@@ -124,7 +124,7 @@ class GUI:
             score = str(len(attempts))
             if not won_the_game:
                 score = "X"
-            return GUI.MOMENTO_FORMAT.format(final_word=game.target_word.upper(), score=score, attempts=attempt_footnote)
+            return GUI.MOMENTO_FORMAT.format(final_word=(game.target_word.upper() if not CONFIG.seed_from_date else DATE_TODAY), score=score, attempts=attempt_footnote)
 
 class Game:
     # Will be a dictionary of tuples, with the attempted word as a key, and a tuple containing the score, and the displayed footnote.
