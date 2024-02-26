@@ -11,6 +11,23 @@
 import random
 import time
 
+WORD_LENGTH = 5
+VALID_WORD_PATH = 'word_bank/all_words.txt'
+ANSWER_WORD_PATH = 'word_bank/target_words.txt'
+CONFIG_PATH = 'config.txt'
+DATE_TODAY = time.strftime("%d/%m/%Y")
+
+# Used so that i can ouput why the answer the user has inputed may not be a valid word.
+ERROR_MESSAGE = " "
+# The welcome message, better practice than using a simple `print("str")` function call.
+WELCOME_MESSAGE = f"Welcome to Wordle! The date today is {DATE_TODAY}."
+# The intro word prompt.
+WORD_PROMPT = "You have {attempts_left} attempts left.\nPlease enter a word: "
+# The format for how an attempt is printed to the console.
+ATTEMPT_FORMAT = "{attempt}\n{footnote} ({score}/5.0)"
+# The ouput format for sharing your results of the game.
+MOMENTO_FORMAT = "Wordle {final_word} {score}/6\n\n{attempts}"
+
 ## Utility functions:
 # Gets a list of strings for each line in a text file.
 def get_list_from_txt(path):
@@ -35,224 +52,191 @@ def get_index_of_character_excluding_others(index, word):
     return -1
 # Clears the console for a clean view.
 def clear_console():
+    global ERROR_MESSAGE
+    global WELCOME_MESSAGE
     print("\033c", end='')
-    print(GUI.WELCOME_MESSAGE)
-    print(GUI.ERROR_MESSAGE)
-    GUI.ERROR_MESSAGE = ""
-
-MAX_ATTEMPTS = 6
-WORD_LENGTH = 5
-
-VALID_WORD_PATH = 'word_bank/all_words.txt'
-ANSWER_WORD_PATH = 'word_bank/target_words.txt'
-CONFIG_PATH = 'config.txt'
-
-DATE_TODAY = time.strftime("%d/%m/%Y")
+    print(WELCOME_MESSAGE)
+    print(ERROR_MESSAGE)
+    ERROR_MESSAGE = ""
 
 # All valid input words. Not every word you can use can be an answer.
 valid_words = get_list_from_txt(VALID_WORD_PATH)
 # All the words the answer for the game could possibly be.
 target_words = get_list_from_txt(ANSWER_WORD_PATH)
 
-# A handler for gathering config files in a game experience.
-class Config:
-    ## These values are the defaults and confirm that a setting isn't ever invalid.
-    # For interal use to make sure everything is working.
-    debug_mode = False
-    # Whether to print using emojis, or with numerical values.
-    display_symbols = True
-    # For full customization of what characters can be displayed.
-    game_characters = ["⬛", "🟨", "🟩"]
-    # Whether to use a seed from todays date, or psuedo-random
-    seed_from_date = False
+CONFIG = dict()
 
-    def generate_config(self):
-        settings = get_list_from_txt(CONFIG_PATH)
-        for line in settings:
-            if line.startswith("#") or len(line) < 1 or "=" not in line:
+def generate_config():
+    settings = get_list_from_txt(CONFIG_PATH)
+    for line in settings:
+        if line.startswith("#") or len(line) < 1 or "=" not in line:
+            continue
+
+        global CONFIG
+        setting = line.split("=")[0]
+        value = line.split("#")[0].strip().split("=")[1]
+
+        if setting == "game_characters":
+            try:
+                CONFIG[setting] = value.split(",")
+            except:
+                CONFIG[setting] = ["⬛", "🟨", "🟩"]
+        elif setting == "max_attempts":
+            try:
+                CONFIG[setting] = int(value)
+            except:
+                CONFIG[setting] = 6
+        else:
+            CONFIG[setting] = value == "true"
+generate_config()
+
+def send_error(msg):
+    global ERROR_MESSAGE
+    ERROR_MESSAGE = msg
+    return False
+
+FOOTNOTES = {
+    "MISSED": 0,
+    "CONTAINS": 1,
+    "CORRECT": 2
+}
+def game_char_from_value(value):
+    return CONFIG["game_characters"][value]
+
+# Will be a dictionary of tuples, with the attempted word as a key, and a tuple containing the score, and the displayed footnote.
+attempts = dict()
+# The word of the "day".
+target_word = ""
+
+def init_game():
+    clear_console()
+    if CONFIG["debug_mode"]:
+        print(f"[DEBUG]: A valid word has been chosen. ({target_word})") # Making sure an answer is actually provided.
+
+# generates the contained letters seperately, as this handles whether a character has been guessed previously and is correct.
+def generate_contained_scores(user_guess):
+    score_list = list()
+    target_freq = generate_char_frequency(target_word)
+    for i, char in enumerate(user_guess):
+        if target_word.find(char) > -1:
+            if get_index_of_character_excluding_others(i, user_guess) <= target_freq[char]:
+                score_list.append(1)
                 continue
-            setting = line.split("=")[0]
-            value = line.split("#")[0].strip().split("=")[1]
-            if setting == "debug_mode":
-                self.debug_mode = value == "true"
-            elif setting == "display_symbols":
-                self.display_symbols = value == "true"
-            elif setting == "game_characters":
-                self.game_characters = value.split(",")
-            elif setting == "seed_from_date":
-                self.seed_from_date = value == "true"
-    def __init__(self):
-        self.generate_config()
-
-CONFIG = Config()
-
-# A front end class to handle how text may be displayed. This could be used to provide localization in the future.
-class GUI:
-    # Used so that i can ouput why the answer the user has inputed may not be a valid word.
-    ERROR_MESSAGE = ""
-    # The welcome message, better practice than using a simple `print("str")` function call.
-    WELCOME_MESSAGE = f"Welcome to Wordle! The date today is {DATE_TODAY}."
-    # The intro word prompt.
-    WORD_PROMPT = "You have {attempts_left} attempts left.\nPlease enter a word: "
-    # The format for how an attempt is printed to the console.
-    ATTEMPT_FORMAT = "{attempt}\n{footnote} ({score}/5.0)"
-    # The ouput format for sharing your results of the game.
-    MOMENTO_FORMAT = "Wordle {final_word} {score}/6\n\n{attempts}"
-
-    def send_error(msg):
-        GUI.ERROR_MESSAGE = msg
-        return False
-
-    # Simple structure to clarify the ascii tokens based on a score value of each character.
-    class Footnote:
-        MISSED = (CONFIG.game_characters[0], 0)
-        CONTAINS = (CONFIG.game_characters[1], 1)
-        CORRECT = (CONFIG.game_characters[2], 2)
-
-        def from_score(value):
-            for t in [  GUI.Footnote.MISSED,  
-                        GUI.Footnote.CONTAINS,
-                        GUI.Footnote.CORRECT ]:
-                if t[1] == value:
-                    return t[0]
-            return GUI.Footnote.MISSED
-        
-        def generate_footnote(game):
-            attempts = game.attempts
-            final_list = list()
-            for _, score_tuple in attempts.items():
-                final_list.append(''.join(score_tuple[0]))
-            attempt_footnote = "\n".join(final_list)
-            score = str(len(attempts))
-            if not won_the_game:
-                score = "X"
-            return GUI.MOMENTO_FORMAT.format(final_word=(game.target_word.upper() if not CONFIG.seed_from_date else DATE_TODAY), score=score, attempts=attempt_footnote)
-
-class Game:
-    # Will be a dictionary of tuples, with the attempted word as a key, and a tuple containing the score, and the displayed footnote.
-    attempts = dict()
-    # The word of the "day".
-    target_word = ""
-
-    def __init__(self, target_word):
-        self.target_word = target_word
-        clear_console()
-        if CONFIG.debug_mode:
-            print(f"[DEBUG]: A valid word has been chosen. ({self.target_word})") # Making sure an answer is actually provided.
-
-    # generates the contained letters seperately, as this handles whether a character has been guessed previously and is correct.
-    def generate_contained_scores(self, user_guess):
-        score_list = list()
-        target_freq = generate_char_frequency(self.target_word)
-        for i, char in enumerate(user_guess):
-            if self.target_word.find(char) > -1:
-                if get_index_of_character_excluding_others(i, user_guess) <= target_freq[char]:
-                    score_list.append(1)
-                    continue
-            score_list.append(0)
-        return score_list
+        score_list.append(0)
+    return score_list
     
-    def generate_confirmed_scores(self, user_guess, contained_list):
-        target_freq = generate_char_frequency(self.target_word)
-        score_list = contained_list[:]
-        for i, char in enumerate(user_guess):
-            if char == self.target_word[i]:
-                score_list[i] = 2        
-                target_freq[char] -= 1   
-                # Iterates back on itself to clear any excess "yellow" letters
-                for index, c in enumerate(user_guess[::-1]):
-                    if c == char and score_list[4 - index] < 2:
-                        if target_freq[c] > 0:
-                            score_list[index] = 1
-                            target_freq[char] -= 1   
-                        else:
-                            score_list[index] = 0     
-                            target_freq[char] -= 1   
-        return score_list
+def generate_confirmed_scores(user_guess, contained_list):
+    target_freq = generate_char_frequency(target_word)
+    score_list = contained_list[:]
+    for i, char in enumerate(user_guess):
+        if char == target_word[i]:
+            score_list[i] = 2        
+            target_freq[char] -= 1   
+            # Iterates back on itself to clear any excess "yellow" letters
+            for index, c in enumerate(user_guess[::-1]):
+                if c == char and score_list[4 - index] < 2 and 4-index != i:
+                    if target_freq[c] > 0:
+                        score_list[index] = 1
+                        target_freq[char] -= 1   
+                    else:
+                        score_list[index] = 0     
+                        target_freq[char] -= 1   
+    return score_list
     
-    def generate_score(self, user_guess):
-        score_list = self.generate_confirmed_scores(user_guess, self.generate_contained_scores(user_guess))
-        return score_list
-    def generate_footnote(self, score_list):
-        emoji_list = list()
-        for score in score_list:
-            emoji_list.append(GUI.Footnote.from_score(score))
-        return emoji_list
+def generate_score(user_guess):
+    score_list = generate_confirmed_scores(user_guess, generate_contained_scores(user_guess))
+    return score_list
+def reveal_attempt(score_list):
+    emoji_list = list()
+    for score in score_list:
+        emoji_list.append(game_char_from_value(score))
+    return emoji_list
 
-    def generate_attempt(self, user_guess):
-        score_list = self.generate_score(user_guess)
-        attempt = (self.generate_footnote(score_list), score_list)
-        self.attempts[user_guess] = attempt
+def generate_attempt(user_guess):
+    score_list = generate_score(user_guess)
+    attempt = (reveal_attempt(score_list), score_list)
+    attempts[user_guess] = attempt
 
-    def get_score(self, user_guess):
-        if user_guess not in self.attempts:
-            return 0
-        total_score = 0
-        for val in self.attempts[user_guess][1]:
-            total_score += val
-        return total_score
+def get_score(user_guess):
+    if user_guess not in attempts:
+        return 0
+    total_score = 0
+    for val in attempts[user_guess][1]:
+        total_score += val
+    return total_score
     
-    def print_attempts(self):
-        clear_console()
-        output = list()
-        for key, score_tuple in self.attempts.items():
-            output.append(GUI.ATTEMPT_FORMAT.format(attempt=key.upper(),footnote=''.join(map(str, score_tuple[0 if CONFIG.display_symbols else 1])), score=(self.get_score(key) / 2)))
-        
-        for footnote in output:
-            print(footnote)
+def print_attempts():
+    clear_console()
+    output = list()
+    for key, score_tuple in attempts.items():
+        output.append(ATTEMPT_FORMAT.format(attempt=key.upper(),footnote=''.join(map(str, score_tuple[0 if CONFIG["display_symbols"] else 1])), score=(get_score(key) / 2)))        
+    for footnote in output:
+        print(footnote)
     
-    def check_win_con(self, user_guess):
-        return self.get_score(user_guess) >= 10
+def check_win_con(user_guess):
+    return get_score(user_guess) >= 10
+    
+    
+def generate_footnote():
+    final_list = list()
+    for _, score_tuple in attempts.items():
+        final_list.append(''.join(score_tuple[0]))
+    attempt_footnote = "\n".join(final_list)
+    score = str(len(attempts))
+    if not won_the_game:
+        score = "X"
+    return MOMENTO_FORMAT.format(final_word=(target_word.upper() if not CONFIG["seed_from_date"] else DATE_TODAY), score=score, attempts=attempt_footnote)
 
-def check_attempt(game, user_guess):
+def check_attempt(user_guess):
     passed = False
-    if user_guess in game.attempts:
-        passed = GUI.send_error("You have already tried this word. Try again.")
+    if user_guess in attempts:
+        passed = send_error("You have already tried this word. Try again.")
     elif len(user_guess) != 5:
-        passed = GUI.send_error("Your guess must be 5 characters in length. Try again.")
+        passed = send_error("Your guess must be 5 characters in length. Try again.")
     elif not user_guess.isalpha():
-        passed = GUI.send_error("Please only use alphabetical characters. Try again.")
+        passed = send_error("Please only use alphabetical characters. Try again.")
     elif user_guess not in valid_words:
-        passed = GUI.send_error("Invalid word. Try again.")
+        passed = send_error("Invalid word. Try again.")
     else:
         passed = True
-        game.generate_attempt(user_guess)
+        generate_attempt(user_guess)
     return passed
         
 # Gets the word from the target list.
 def get_wordle_word():
-    if CONFIG.seed_from_date:
+    if CONFIG["seed_from_date"]:
         random.seed(a=DATE_TODAY,version=2)
     return random.choice(target_words)
 
 # Sends the user a prompt to recieve a momento of their game.
-def prompt_footnote(game):
+def prompt_footnote():
     input("Press ENTER for momento.")
     print("\033c", end='')
-    print(GUI.Footnote.generate_footnote(game))
+    print(generate_footnote())
 
 won_the_game = False
-def play(game):
-    while len(game.attempts) < MAX_ATTEMPTS:
-        user_guess = input(GUI.WORD_PROMPT.format(attempts_left=(MAX_ATTEMPTS - len(game.attempts))))
-        if check_attempt(game, user_guess):
-            global won_the_game; won_the_game = game.check_win_con(user_guess)
-            game.print_attempts()
+def play():
+    while len(attempts) < CONFIG["max_attempts"]:
+        user_guess = input(WORD_PROMPT.format(attempts_left=(CONFIG["max_attempts"] - len(attempts))))
+        if check_attempt(user_guess):
+            global won_the_game; won_the_game = check_win_con(user_guess)
+            print_attempts()
 
             if won_the_game:
                 print("You won!")
-                prompt_footnote(game)
+                prompt_footnote()
                 return
         else:
-            game.print_attempts()
+            print_attempts()
     print("You ran out of attempts :(")
-    print(f"The correct word was {game.target_word}.")
-    prompt_footnote(game)
+    print(f"The correct word was {target_word}.")
+    prompt_footnote()
 
 def init():
+    global target_word
     target_word = get_wordle_word()
-    game = Game(target_word)
-    play(game)
+    init_game()
+    play()
 
 init()
 input("")

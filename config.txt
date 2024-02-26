@@ -4,6 +4,9 @@ debug_mode=false
 # Whether to use symbols or a numerical value in the score display
 display_symbols=true
 
+# The maximum attempts you have before losing
+max_attempts=6
+
 # What characters the output shows.
 game_characters=⬛,🟨,🟩 # A more colorful approach to the ouput
 # game_characters=-,?,X # For accessability of consoles which cannot print emojis
